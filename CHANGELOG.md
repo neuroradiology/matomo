@@ -4,6 +4,27 @@ This is the Developer Changelog for Matomo platform developers. All changes in o
 
 The Product Changelog at **[matomo.org/changelog](https://matomo.org/changelog)** lets you see more details about any Matomo release, such as the list of new guides and FAQs, security fixes, and links to all closed issues. 
 
+## Matomo 3.13.7
+
+### New API
+* A new JavaScript tracker method has been added: `_paq.push(['setVisitorId', visitorId]);`. This can be used to force a specific visitorId. It takes a 16 digit hexadecimal string. 
+
+## Matomo 3.13.6
+
+### API Changes
+* The first parameter `userLogin` in the `UsersManager.getUserPreference` method is now optional and defaults to the currently authenticated user login.
+
+## Matomo 3.13.5
+
+### New API
+* A new event `ArchiveProcessor.ComputeNbUniques.getIdSites` was added so plugins can change which site IDs should be included when processing the number unique visitors and users for a specific site.
+
+## Matomo 3.13.1
+
+### Deprecations
+* The methods `\Piwik\Plugins\SitesManager\isSiteSpecificUserAgentExcludeEnabled()` and `\Piwik\Plugins\SitesManager\setSiteSpecificUserAgentExcludeEnabled()` have been deprecated.
+* The method `\Piwik\SettingsServer::isMatomoForWordPress()` has been added so plugins can detect if the plugin is being executed within Matomo for WordPress or Matomo On-Premise 
+
 ## Matomo 3.13.0
 
 ### New API
@@ -842,6 +863,7 @@ We are using `@since` annotations in case we are introducing new API's to make i
 
 ### Breaking Changes
 ### Deprecations
+### API Changes
 ### New features
 ### New APIs
 ### New commands

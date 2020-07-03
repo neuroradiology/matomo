@@ -2149,7 +2149,7 @@ function PiwikTest() {
     });
 
     test("API methods", function() {
-        expect(109);
+        expect(112);
 
         equal( typeof Piwik.addPlugin, 'function', 'addPlugin' );
         equal( typeof Piwik.addPlugin, 'function', 'addTracker' );
@@ -2180,6 +2180,7 @@ function PiwikTest() {
         equal( typeof tracker.resetUserId, 'function', 'resetUserId' );
         equal( typeof tracker.setUserId, 'function', 'setUserId' );
         equal( typeof tracker.setSiteId, 'function', 'setSiteId' );
+        equal( typeof tracker.setVisitorId, 'function', 'setVisitorId' );
         equal( typeof tracker.setCustomData, 'function', 'setCustomData' );
         equal( typeof tracker.getCustomData, 'function', 'getCustomData' );
         equal( typeof tracker.setCustomRequestProcessing, 'function', 'setCustomRequestProcessing' );
@@ -2243,6 +2244,7 @@ function PiwikTest() {
         equal( typeof tracker.disableQueueRequest, 'function', 'disableQueueRequest' );
         equal( typeof tracker.setRequestQueueInterval, 'function', 'setRequestQueueInterval' );
         equal( typeof tracker.disableCookies, 'function', 'disableCookies' );
+        equal( typeof tracker.enableCookies, 'function', 'enableCookies' );
         equal( typeof tracker.deleteCookies, 'function', 'deleteCookies' );
         // content
         equal( typeof tracker.trackAllContentImpressions, 'function', 'trackAllContentImpressions' );
@@ -2263,6 +2265,7 @@ function PiwikTest() {
         // consent
         equal( typeof tracker.getRememberedConsent, 'function', 'getRememberedConsent' );
         equal( typeof tracker.hasRememberedConsent, 'function', 'hasRememberedConsent' );
+        equal( typeof tracker.isConsentRequired, 'function', 'isConsentRequired' );
         equal( typeof tracker.requireConsent, 'function', 'requireConsent' );
         equal( typeof tracker.setConsentGiven, 'function', 'setConsentGiven' );
         equal( typeof tracker.rememberConsentGiven, 'function', 'rememberConsentGiven' );
@@ -3189,7 +3192,7 @@ function PiwikTest() {
     }
 
     test("User ID and Visitor UUID", function() {
-        expect(27);
+        expect(28);
         deleteCookies();
 
         var userIdString = 'userid@mydomain.org';
@@ -3214,6 +3217,11 @@ function PiwikTest() {
         // Check that Visitor ID is the same when requested multiple times
         var visitorId = tracker.getVisitorId();
         equal(visitorId, tracker.getVisitorId(), "Visitor ID is the same when called multiple times");
+
+        tracker.setVisitorId('invalid'); // invalid characters
+        tracker.setVisitorId('012345abc'); // too short
+        tracker.setVisitorId('');
+        equal(visitorId, tracker.getVisitorId(), "Visitor ID is not updated when invalid");
 
         // Check that setting an empty user id will not change the visitor ID
         var userId = '';
@@ -3597,7 +3605,7 @@ if ($mysql) {
     });
 
     test("tracking with sendBeacon", function() {
-        expect(9);
+        expect(11);
 
         var tracker = Piwik.getTracker();
         tracker.setTrackerUrl("matomo.php");
@@ -3615,6 +3623,9 @@ if ($mysql) {
             ok(event.request.indexOf('action_name=') === 0, 'contains request');
         });
 
+        tracker.queueRequest('action_name=Queue1'); // these 2 will be sent as bulk request
+        tracker.queueRequest('action_name=Queue2');
+
         stop();
         setTimeout(function() {
             ok(callbackCalled, 'called the callback');
@@ -3624,13 +3635,15 @@ if ($mysql) {
             xhr.send(null);
             var results = xhr.responseText;
             var m = /<span\>([0-9]+)\<\/span\>/.exec(results);
-            equal( m ? m[1] : 0, "2", "count tracking events" );
+            equal( m ? m[1] : 0, "4", "count tracking events" );
 
             ok(results.indexOf('matomo.php?action_name=' + shortTitle + '&') >= 0, "trackPageView() sends small request");
             ok(results.indexOf('matomo.php?action_name=' + longTitle + '&') >= 0, "trackPageView() sends long request");
+            ok(results.indexOf('matomo.php?action_name=Queue1&') >= 0, "queueRequest() sends bulk request 1");
+            ok(results.indexOf('matomo.php?action_name=Queue2&') >= 0, "queueRequest() sends bulk request 2");
 
             start();
-        }, 2000);
+        }, 6000);
     });
 
 
@@ -4372,6 +4385,7 @@ if ($mysql) {
 
         function resetTracker(track, token, replace)
         {
+            tracker.getRequestQueue().sendRequests(); // make sure to send any remaining queued requests
             tracker.clearTrackedContentImpressions();
             tracker.clearEnableTrackOnlyVisibleContent();
             tracker.setCustomData('token', token);
@@ -4444,7 +4458,7 @@ if ($mysql) {
         tracker.trackAllContentImpressions();
         strictEqual(tracker.getTrackedContentImpressions().length, 7, 'should mark 7 content blocks as tracked');
 
-        wait(300);
+        wait(3000);
 
         var token2 = '2' + token;
         resetTracker(tracker, token2);
@@ -4456,7 +4470,7 @@ if ($mysql) {
         tracker.trackContentImpressionsWithinNode(_e('click1'));
         strictEqual(tracker.getTrackedContentImpressions().length, 0, 'should not track anything as does not contain content block');
 
-        wait(300);
+        wait(3000);
 
         var token3 = '3' + token;
         resetTracker(tracker, token3);
@@ -4466,17 +4480,17 @@ if ($mysql) {
         tracker.trackContentImpression('Any://Name', 'AnyPiece?', 'http://www.example.com');
         strictEqual(tracker.getTrackedContentImpressions().length, 0, 'manual impression call should not be marked as already tracked');
 
-        wait(300);
+        wait(3000);
 
         var token4 = '4' + token;
         resetTracker(tracker, token4);
         tracker.trackContentInteraction(); // should not track anything as interaction and name is required
         tracker.trackContentInteraction('Clicki'); // should not track anything as interaction and name is required
         tracker.trackContentInteraction('Clicke', 'IntName'); // should use default for piece and ignore target as it is not set
-        wait(500);
+        wait(300);
         tracker.trackContentInteraction('Clicki', 'IntN:/ame', 'IntPiece?', 'http://int.example.com');
 
-        wait(300);
+        wait(3000);
 
         setupContentTrackingFixture('trackingContent', document.body);
 
@@ -4484,7 +4498,7 @@ if ($mysql) {
         resetTracker(tracker, token5);
         tracker.trackContentInteractionNode(_s('#ex5'), 'Clicki?iii');
 
-        wait(300);
+        wait(3000);
 
         var token6 = '6' + token;
         resetTracker(tracker, token6);
@@ -4492,6 +4506,8 @@ if ($mysql) {
         tracker.trackAllContentImpressions();
         expected = [contentBlocks[7], contentBlocks[6], contentBlocks[5], contentBlocks[1], contentBlocks[4], contentBlocks[3], contentBlocks[2]];
         propEqual(tracker.getTrackedContentImpressions().length, 7, 'should still track all impressions even if visible enabled');
+
+        wait(3000);
 
         var token7 = '7' + token;
         resetTracker(tracker, token7);
@@ -4504,8 +4520,7 @@ if ($mysql) {
         expected = [contentBlocks[6], contentBlocks[5]];
         propEqual(tracker.getTrackedContentImpressions(), expected, 'should track the two visible ones');
 
-
-        wait(300);
+        wait(3000);
 
         var token8 = '8' + token;
         resetTracker(tracker, token8);
@@ -4513,8 +4528,7 @@ if ($mysql) {
         expected = [contentBlocks[6], contentBlocks[5], contentBlocks[1]];
         propEqual(tracker.getTrackedContentImpressions(), expected, 'should only track all visible impressions');
 
-
-        wait(300);
+        wait(3000);
 
         // test detection of content via interval
         var token9  = '9' + token;
@@ -4569,6 +4583,7 @@ if ($mysql) {
 
             // trackAllContentImpressions()
             var results = fetchTrackedRequests(token);
+
             equal( (/<span\>([0-9]+)\<\/span\>/.exec(results))[1], "7", "count trackAllContentImpressions requests. all content blocks should be tracked" );
 
             var requests = results.match(/<span\>(.*?)\<\/span\>/g);
@@ -4688,7 +4703,7 @@ if ($mysql) {
             equal( (/<span\>([0-9]+)\<\/span\>/.exec(results))[1], "6", "count automatically tracked requests, via scroll. " );
 
             start();
-        }, 7000);
+        }, 13000);
 
         expected =
             [
@@ -4930,7 +4945,7 @@ if ($mysql) {
     });
 
     test("Test API - consent", function() {
-        expect(27);
+        expect(29);
 
         var queue;
         var tracker = Piwik.getTracker();
@@ -4940,7 +4955,10 @@ if ($mysql) {
         strictEqual(tracker.getRememberedConsent(), null, "getConsentRequestsQueue, does not return consent cookie content as no consent given" );
         strictEqual(tracker.hasConsent(), true, "hasConsent, assumes consent by default" );
 
+        ok(!tracker.isConsentRequired(), 'by default consent is not required')
         tracker.requireConsent();
+
+        ok(tracker.isConsentRequired(), 'consent is required after requiring it')
         deepEqual(tracker.getConsentRequestsQueue(), [], "getConsentRequestsQueue, still empty after requiring consent" );
 
         tracker.trackRequest('myFoo=bar&baz=1');
@@ -5045,6 +5063,59 @@ if ($mysql) {
         });
     });
 
+    test("Test optOut (via iframe)", function () {
+        expect(6);
+
+        var tracker = Piwik.addTracker();
+
+        strictEqual(tracker.hasConsent(), true, "hasConsent(), should be true by default" );
+
+        stop();
+        Q.delay(1).then(function () {
+            // Fire a message to set the opt in status to false
+            var optOutMessage = JSON.stringify({maq_opted_in: false});
+            tracker.hook.test._windowAlias.postMessage(optOutMessage, '*');
+            return Q.delay(500);
+       }).then(function () {
+            strictEqual(tracker.hasConsent(), false, "optout message listener should have set the cookie to false (async tracker)" );
+            // Fire another message to set it back to true
+            var optInMessage = JSON.stringify({maq_opted_in: true});
+            tracker.hook.test._windowAlias.postMessage(optInMessage, '*');
+            return Q.delay(500);
+        }).then(function () {
+            strictEqual(tracker.hasConsent(), true, "optout message listener should have set the cookie to true" );
+            start();
+        }).catch(function (e) {
+            console.log('caught', e.stack || e.message || e);
+        });
+    });
+
+    test("Test refreshConsentStatus()", function() {
+        expect(7);
+
+        var tracker = Piwik.addTracker();
+        var document = tracker.hook.test._windowAlias.document;
+
+        // Test 1: no cookies
+        tracker.hook.test._refreshConsentStatus();
+        strictEqual(tracker.hasConsent(), true, "hasConsent() true when no cookies present");
+
+        // Test 2: optout cookie
+        document.cookie = 'mtm_consent_removed=12345';
+        tracker.hook.test._refreshConsentStatus();
+        strictEqual(tracker.hasConsent(), false, "hasConsent() false when optout cookie present");
+
+        // Test 3: optin cookie
+        document.cookie = 'mtm_consent_removed=;expires=Sun, 01 Dec 2019 00:00:01 GMT';
+        document.cookie = 'mtm_consent=12345';
+        tracker.hook.test._refreshConsentStatus();
+        strictEqual(tracker.hasConsent(), true, "hasConsent() true when optin cookie present");
+
+        // Test 4: both cookies
+        document.cookie = 'mtm_consent_removed=12345';
+        tracker.hook.test._refreshConsentStatus();
+        strictEqual(tracker.hasConsent(), false, "hasConsent() false when optout cookie present");
+    });
 
     test("Internal timers and setLinkTrackingTimer()", function() {
         expect(8);
